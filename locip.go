@@ -29,7 +29,7 @@ const (
 
 func checkDatabase() {
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		fmt.Printf("Warning: GeoLite2 database not found at %s. Local lookup features will be unavailable.\\n", dbPath)
+		fmt.Printf("Warning: GeoLite2 database not found at %s. Local lookup features will be unavailable.\n", dbPath)
 		// Do not exit, allow the program to continue for -i option or other fallbacks.
 	}
 }
@@ -37,10 +37,10 @@ func checkDatabase() {
 func printFullRecord(ipStr string) {
 	db, err := geoip2.Open(dbPath)
 	if err != nil {
-		fmt.Printf("Error: Could not access local GeoLite2 database to look up %s.\\n", ipStr)
-		fmt.Printf("Reason: %v\\n", err)
-		fmt.Printf("Please ensure the database file exists at %s and is valid.\\n", dbPath)
-		fmt.Printf("Alternatively, try 'locip -i %s' for an online lookup.\\n", ipStr)
+		fmt.Printf("Error: Could not access local GeoLite2 database to look up %s.\n", ipStr)
+		fmt.Printf("Reason: %v\n", err)
+		fmt.Printf("Please ensure the database file exists at %s and is valid.\n", dbPath)
+		fmt.Printf("Alternatively, try 'locip -i %s' for an online lookup.\n", ipStr)
 		return
 	}
 	defer db.Close()
@@ -48,9 +48,9 @@ func printFullRecord(ipStr string) {
 	ip := net.ParseIP(ipStr)
 	record, err := db.City(ip)
 	if err != nil {
-		fmt.Printf("Error: Could not retrieve GeoIP details for %s from the local database.\\n", ipStr)
-		fmt.Printf("Reason: %v\\n", err)
-		fmt.Printf("Consider using 'locip -i %s' for an alternative online lookup.\\n", ipStr)
+		fmt.Printf("Error: Could not retrieve GeoIP details for %s from the local database.\n", ipStr)
+		fmt.Printf("Reason: %v\n", err)
+		fmt.Printf("Consider using 'locip -i %s' for an alternative online lookup.\n", ipStr)
 		return
 	}
 
@@ -67,8 +67,8 @@ func printCityOnly(ipStr string, db *geoip2.Reader) {
 	ip := net.ParseIP(ipStr)
 	record, err := db.City(ip)
 	if err != nil {
-		fmt.Printf("[!] Could not retrieve city details for %s from local database: %v\\n", ipStr, err)
-		fmt.Printf("[+] %s -> Error looking up in local DB\\n", ipStr)
+		fmt.Printf("[!] Could not retrieve city details for %s from local database: %v\n", ipStr, err)
+		fmt.Printf("[+] %s -> Error looking up in local DB\n", ipStr)
 		return
 	}
 
@@ -80,9 +80,9 @@ func printCityOnly(ipStr string, db *geoip2.Reader) {
 	country := record.Country.Names["en"]
 
 	if city == "" && region == "" && country == "" {
-		fmt.Printf("[+] %s -> Information not available in local DB\\n", ipStr)
+		fmt.Printf("[+] %s -> Information not available in local DB\n", ipStr)
 	} else {
-		fmt.Printf("[+] %s -> %s, %s, %s\\n", ipStr, city, region, country)
+		fmt.Printf("[+] %s -> %s, %s, %s\n", ipStr, city, region, country)
 	}
 }
 
@@ -142,27 +142,28 @@ func queryIpInfo(ipAddress string) {
 		return
 	}
 
-	fmt.Printf("%sIP:%s %s\n", ColorCyan, ColorReset, ipInfo.IP)
+	fmt.Println() // Línea extra
+	fmt.Printf("%sIP:%s %s%s%s\n", ColorBlue, ColorReset, ColorYellow, ipInfo.IP, ColorReset)
 	if ipInfo.City != "" {
-		fmt.Printf("%sCity:%s %s\n", ColorCyan, ColorReset, ipInfo.City)
+		fmt.Printf("%sCity:%s %s%s%s\n", ColorBlue, ColorReset, ColorYellow, ipInfo.City, ColorReset)
 	}
 	if ipInfo.Region != "" {
-		fmt.Printf("%sRegion:%s %s\n", ColorCyan, ColorReset, ipInfo.Region)
+		fmt.Printf("%sRegion:%s %s%s%s\n", ColorBlue, ColorReset, ColorYellow, ipInfo.Region, ColorReset)
 	}
 	if ipInfo.Country != "" {
-		fmt.Printf("%sCountry:%s %s\n", ColorCyan, ColorReset, ipInfo.Country)
+		fmt.Printf("%sCountry:%s %s%s%s\n", ColorBlue, ColorReset, ColorYellow, ipInfo.Country, ColorReset)
 	}
 	if ipInfo.Loc != "" {
-		fmt.Printf("%sLocation:%s %s\n", ColorCyan, ColorReset, ipInfo.Loc)
+		fmt.Printf("%sLocation:%s %s%s%s\n", ColorBlue, ColorReset, ColorYellow, ipInfo.Loc, ColorReset)
 	}
 	if ipInfo.Org != "" {
-		fmt.Printf("%sOrganization:%s %s\n", ColorCyan, ColorReset, ipInfo.Org)
+		fmt.Printf("%sOrganization:%s %s%s%s\n", ColorBlue, ColorReset, ColorYellow, ipInfo.Org, ColorReset)
 	}
 	if ipInfo.Postal != "" {
-		fmt.Printf("%sPostal Code:%s %s\n", ColorCyan, ColorReset, ipInfo.Postal)
+		fmt.Printf("%sPostal Code:%s %s%s%s\n", ColorBlue, ColorReset, ColorYellow, ipInfo.Postal, ColorReset)
 	}
 	if ipInfo.Timezone != "" {
-		fmt.Printf("%sTimezone:%s %s\n", ColorCyan, ColorReset, ipInfo.Timezone)
+		fmt.Printf("%sTimezone:%s %s%s%s\n", ColorBlue, ColorReset, ColorYellow, ipInfo.Timezone, ColorReset)
 	}
 }
 
@@ -172,8 +173,8 @@ func processIPFile(filePath string) {
 	// Attempt to open the database ONCE for the entire file processing.
 	db, errDB := geoip2.Open(dbPath)
 	if errDB != nil {
-		fmt.Printf("Error: Cannot process file '%s' using the local GeoLite2 database.\\n", filePath)
-		fmt.Printf("Reason: Failed to open database at '%s': %v\\n", dbPath, errDB)
+		fmt.Printf("Error: Cannot process file '%s' using the local GeoLite2 database.\n", filePath)
+		fmt.Printf("Reason: Failed to open database at '%s': %v\n", dbPath, errDB)
 		fmt.Println("Please ensure the database file exists and is valid, or use the '-i <ip>' option for individual online lookups.")
 		return // Stop processing this file if DB can't be opened.
 	}
@@ -182,16 +183,16 @@ func processIPFile(filePath string) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		if filePath == "ips.txt" && os.IsNotExist(err) {
-			fmt.Printf("Default file '%s' not found.\\n", filePath)
+			fmt.Printf("Default file '%s' not found.\n", filePath)
 			printUsage() // This already exits if it's the default file and not found.
 			return       // Return to be safe, though printUsage exits.
 		}
-		fmt.Printf("Error: Could not open IP list file '%s': %v\\n", filePath, err)
+		fmt.Printf("Error: Could not open IP list file '%s': %v\n", filePath, err)
 		os.Exit(1)
 	}
 	defer file.Close()
 
-	fmt.Printf("[*] Processing IPs from file: %s (using local DB)\\n", filePath)
+	fmt.Printf("[*] Processing IPs from file: %s (using local DB)\n", filePath)
 	scanner := bufio.NewScanner(file)
 	foundIPs := false
 	for scanner.Scan() {
@@ -205,7 +206,7 @@ func processIPFile(filePath string) {
 		fmt.Printf("No IP addresses found in %s.\n", filePath)
 	}
 	if err := scanner.Err(); err != nil {
-		fmt.Printf("Error: Could not read IP list file '%s': %v\\n", filePath, err)
+		fmt.Printf("Error: Could not read IP list file '%s': %v\n", filePath, err)
 		os.Exit(1)
 	}
 }
