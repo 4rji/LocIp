@@ -1,6 +1,8 @@
 # LocIp
 
-This project uses Go and the `geoip2-golang` library to perform IP geolocation.
+This project uses Go and the `geoip2-golang` library to perform IP geolocation using a local GeoLite2 database, and also integrates with the ipinfo.io API for online IP geolocation queries.
+
+![LocIp Screenshot](img/1.png)
 
 ## Setup
 
