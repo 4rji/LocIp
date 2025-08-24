@@ -3,17 +3,22 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/oschwald/geoip2-golang"
 )
 
 const dbPath = "/opt/4rji/GeoLite2-City.mmdb"
+const abuseBaseURL = "https://api.abuseipdb.com/api/v2/check"
 
 // ANSI escape codes for colors
 const (
@@ -26,6 +31,103 @@ const (
 	ColorCyan   = "\033[36m"
 	ColorWhite  = "\033[37m"
 )
+
+// AbuseIPDB response structure
+type abuseCheckResp struct {
+	Data struct {
+		IPAddress            string      `json:"ipAddress"`
+		AbuseConfidenceScore int         `json:"abuseConfidenceScore"`
+		TotalReports         int         `json:"totalReports"`
+		LastReportedAt       *string     `json:"lastReportedAt"`
+		UsageType            *string     `json:"usageType"`
+		Domain               *string     `json:"domain"`
+		CountryCode          *string     `json:"countryCode"`
+		Isp                  *string     `json:"isp"`
+		Reports              interface{} `json:"reports,omitempty"`
+	} `json:"data"`
+}
+
+func nz(s *string, def string) string {
+	if s == nil || *s == "" {
+		return def
+	}
+	return *s
+}
+
+// AbuseIPDB helper functions
+func getAbuseAPIKey() (string, error) {
+	if v := os.Getenv("ABUSEIPDB_KEY"); v != "" {
+		return v, nil
+	}
+	home, _ := os.UserHomeDir()
+	candidates := []string{
+		filepath.Join(home, ".config", "abuseipdb", "key"),
+		filepath.Join(home, ".abuseipdb_key"),
+	}
+	for _, p := range candidates {
+		if b, err := os.ReadFile(p); err == nil {
+			return string(trimNL(b)), nil
+		}
+	}
+	return "", errors.New("no key")
+}
+
+func trimNL(b []byte) []byte {
+	for len(b) > 0 && (b[len(b)-1] == '\n' || b[len(b)-1] == '\r' || b[len(b)-1] == ' ') {
+		b = b[:len(b)-1]
+	}
+	return b
+}
+
+func checkAbuseIP(ip string, maxAge int, raw bool) {
+	key, err := getAbuseAPIKey()
+	if err != nil || key == "" {
+		fmt.Fprintf(os.Stderr, "ERR: ABUSEIPDB_KEY no definido\n")
+		os.Exit(1)
+	}
+
+	cl := &http.Client{Timeout: 15 * time.Second}
+	req, _ := http.NewRequest("GET", abuseBaseURL, nil)
+	q := req.URL.Query()
+	q.Add("ipAddress", ip)
+	q.Add("maxAgeInDays", fmt.Sprintf("%d", maxAge))
+	req.URL.RawQuery = q.Encode()
+	req.Header.Set("Key", key)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := cl.Do(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERR: %s\n", err.Error())
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		fmt.Fprintf(os.Stderr, "ERR: HTTP %d: %s\n", resp.StatusCode, string(b))
+		os.Exit(1)
+	}
+
+	var out abuseCheckResp
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		fmt.Fprintf(os.Stderr, "ERR: %s\n", err.Error())
+		os.Exit(1)
+	}
+
+	if raw {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(out.Data)
+		return
+	}
+
+	fmt.Printf("%s\tabuseScore=%d\treports=%d\tlastSeen=%s\n",
+		out.Data.IPAddress,
+		out.Data.AbuseConfidenceScore,
+		out.Data.TotalReports,
+		nz(out.Data.LastReportedAt, "-"),
+	)
+}
 
 func checkDatabase() {
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
@@ -101,10 +203,12 @@ type IPInfo struct {
 
 func printUsage() {
 	fmt.Println("Usage: locip [options] [target]")
-	fmt.Println("\nLooks up geolocation information for IP addresses using a local GeoLite2 database or ipinfo.io.")
+	fmt.Println("\nLooks up geolocation information for IP addresses using a local GeoLite2 database, ipinfo.io, or AbuseIPDB.")
 	fmt.Println("\nOptions:")
 	fmt.Println("  -i [ip_address]   Query ipinfo.io for the given IP address (or your public IP if none provided).")
 	fmt.Println("                    Displays detailed information including city, region, country, location, etc.")
+	fmt.Println("  -a <ip_address>   Query AbuseIPDB for abuse information about the given IP address.")
+	fmt.Println("                    Options: --age <days> (default: 90), --raw (JSON output)")
 	fmt.Println("\nTargets (Uses local GeoLite2 Database):")
 	fmt.Println("  <ip_address>      Show full geolocation details (city, region, country, lat/long) for the given IP address.")
 	fmt.Println("  <filepath>        Process a file containing a list of IP addresses (one per line).")
@@ -116,6 +220,8 @@ func printUsage() {
 	fmt.Println("\nExamples:")
 	fmt.Println("  locip -i 8.8.8.8       # Query ipinfo.io for 8.8.8.8")
 	fmt.Println("  locip -i               # Query ipinfo.io for your public IP")
+	fmt.Println("  locip -a 1.2.3.4       # Query AbuseIPDB for 1.2.3.4")
+	fmt.Println("  locip -a 1.2.3.4 --age 30 --raw  # Query with custom age and raw JSON output")
 	fmt.Println("  locip 1.1.1.1          # Use local DB for full details of 1.1.1.1")
 	fmt.Println("  locip my_ip_list.txt   # Use local DB to process IPs in my_ip_list.txt")
 	fmt.Println("  locip                  # Use local DB to process IPs in ips.txt (if it exists)")
@@ -266,6 +372,37 @@ func main() {
 				}
 			}
 		}
+		return
+	}
+
+	if firstArg == "-a" {
+		if len(args) < 2 {
+			fmt.Fprintf(os.Stderr, "ERR: falta IP después de -a\n")
+			printUsage()
+			os.Exit(1)
+		}
+		ipToCheck := args[1]
+		maxAge := 90
+		raw := false
+
+		// Check for additional flags
+		for i := 2; i < len(args); i++ {
+			if args[i] == "--age" && i+1 < len(args) {
+				if age, err := fmt.Sscanf(args[i+1], "%d", &maxAge); err != nil || age != 1 {
+					fmt.Fprintf(os.Stderr, "ERR: valor inválido para --age\n")
+					os.Exit(1)
+				}
+				i++ // Skip the next argument
+			} else if args[i] == "--raw" {
+				raw = true
+			} else {
+				fmt.Fprintf(os.Stderr, "ERR: argumento desconocido: %s\n", args[i])
+				printUsage()
+				os.Exit(1)
+			}
+		}
+
+		checkAbuseIP(ipToCheck, maxAge, raw)
 		return
 	}
 
