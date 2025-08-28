@@ -17,6 +17,8 @@ func printUsage() {
 	fmt.Println("                    Displays detailed information including city, region, country, location, etc.")
 	fmt.Println("  -a <ip_address>   Query AbuseIPDB for abuse information about the given IP address.")
 	fmt.Println("                    Options: --age <days> (default: 90), --raw (JSON output)")
+	fmt.Println("  -a <filepath>     Query AbuseIPDB for abuse information about each IP in the specified file.")
+	fmt.Println("                    Each IP should be on a separate line. Supports --age and --raw options.")
 	fmt.Println("\nTargets (Uses local GeoLite2 Database):")
 	fmt.Println("  <ip_address>      Show full geolocation details (city, region, country, lat/long) for the given IP address.")
 	fmt.Println("  <filepath>        Process a file containing a list of IP addresses (one per line).")
@@ -30,6 +32,7 @@ func printUsage() {
 	fmt.Println("  locip -i               # Query ipinfo.io for your public IP")
 	fmt.Println("  locip -a 1.2.3.4       # Query AbuseIPDB for 1.2.3.4")
 	fmt.Println("  locip -a 1.2.3.4 --age 30 --raw  # Query with custom age and raw JSON output")
+	fmt.Println("  locip -a ip_list.txt    # Query AbuseIPDB for each IP in ip_list.txt")
 	fmt.Println("  locip 1.1.1.1          # Use local DB for full details of 1.1.1.1")
 	fmt.Println("  locip my_ip_list.txt   # Use local DB to process IPs in my_ip_list.txt")
 	fmt.Println("  locip                  # Use local DB to process IPs in ips.txt (if it exists)")
@@ -68,6 +71,36 @@ func processIPFile(filePath string) {
 		ip := strings.TrimSpace(scanner.Text())
 		if ip != "" {
 			printCityOnly(ip, db) // Pass the opened db
+			foundIPs = true
+		}
+	}
+	if !foundIPs {
+		fmt.Printf("No IP addresses found in %s.\n", filePath)
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Printf("Error: Could not read IP list file '%s': %v\n", filePath, err)
+		os.Exit(1)
+	}
+}
+
+// processAbuseIPFile reads a file containing IP addresses (one per line)
+// and checks each IP using AbuseIPDB with the specified parameters.
+func processAbuseIPFile(filePath string, maxAge int, raw bool) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		fmt.Printf("Error: Could not open IP list file '%s': %v\n", filePath, err)
+		os.Exit(1)
+	}
+	defer file.Close()
+
+	fmt.Printf("[*] Processing IPs from file: %s (using AbuseIPDB)\n", filePath)
+	scanner := bufio.NewScanner(file)
+	foundIPs := false
+	for scanner.Scan() {
+		ip := strings.TrimSpace(scanner.Text())
+		if ip != "" {
+			fmt.Printf("\n--- Checking IP: %s ---\n", ip)
+			checkAbuseIP(ip, maxAge, raw)
 			foundIPs = true
 		}
 	}

@@ -66,11 +66,11 @@ func main() {
 
 	if firstArg == "-a" {
 		if len(args) < 2 {
-			fmt.Fprintf(os.Stderr, "ERR: falta IP después de -a\n")
+			fmt.Fprintf(os.Stderr, "ERR: falta IP o archivo después de -a\n")
 			printUsage()
 			os.Exit(1)
 		}
-		ipToCheck := args[1]
+		target := args[1]
 		maxAge := 90
 		raw := false
 
@@ -91,7 +91,14 @@ func main() {
 			}
 		}
 
-		checkAbuseIP(ipToCheck, maxAge, raw)
+		// Check if target is a file or an IP address
+		if fi, err := os.Stat(target); err == nil && !fi.IsDir() {
+			// It's a file, process each IP in the file
+			processAbuseIPFile(target, maxAge, raw)
+		} else {
+			// It's an IP address, process it directly
+			checkAbuseIP(target, maxAge, raw)
+		}
 		return
 	}
 
