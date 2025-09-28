@@ -16,21 +16,26 @@ A comprehensive IP geolocation tool written in Go that provides multiple lookup 
 
 ## Installation
 
+### Go Install (recommended)
+
+```bash
+go install github.com/4rji/LocIp@latest
+```
+
+Add `$(go env GOPATH)/bin` to your `PATH` if you have not already. The installation places the `locip` binary in that directory.
+
+### Manual Build
+
 1. Clone the repository:
-```bash
-git clone <repository-url>
-cd LocIp
-```
+   ```bash
+   git clone https://github.com/4rji/LocIp.git
+   cd LocIp
+   ```
 
-2. Install dependencies:
-```bash
-go mod tidy
-```
-
-3. Build the binary:
-```bash
-go build -o locip .
-```
+2. Build the binary:
+   ```bash
+   go build -o locip .
+   ```
 
 ## Usage
 
@@ -98,7 +103,7 @@ echo "your_api_key_here" > ~/.abuseipdb_key
 
 The tool expects the GeoLite2 City database at `/opt/4rji/GeoLite2-City.mmdb`. You can:
 
-1. Download it from MaxMind
+1. Download it from MaxMind and accept their license
 2. Place it in the expected location
 3. Or modify the `dbPath` constant in `geoip.go`
 
@@ -139,7 +144,7 @@ Then process it:
 ./locip -a 192.168.1.1 --age 60
 ```
 
-This will check the abuse reputation for the last 60 days instead of the default 90 days.
+This command checks the abuse reputation for the last 60 days instead of the default 90 days.
 
 ## License
 
