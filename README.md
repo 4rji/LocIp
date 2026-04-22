@@ -1,151 +1,156 @@
-# LocIp - IP Geolocation Tool
+# locip
 
-A comprehensive IP geolocation tool written in Go that provides multiple lookup methods:
+`locip` is a small Go CLI for IP geolocation lookups.
 
-- **Local GeoLite2 Database**: Fast local lookups for city, region, country, and coordinates
-- **ipinfo.io**: Online lookups with detailed information including organization and timezone
-- **AbuseIPDB**: Abuse reputation checking for IP addresses
+It supports two lookup modes:
+
+- **ipinfo.io** for online lookups (default behavior)
+- **GeoLite2 City** for local database lookups with `-d` or `-db`
 
 ## Features
 
-- Multiple lookup sources (local DB, ipinfo.io, AbuseIPDB)
-- File processing support (batch IP lookups)
-- Colored output for better readability
-- Automatic API key detection
-- Flexible command-line options
+- Online IP lookup through `ipinfo.io`
+- Local GeoLite2 City database lookup
+- Batch processing from files
+- ANSI colored output using **red, blue, and yellow**
+- `NO_COLOR` and `-no-color` support
+- Simple single-binary CLI
 
 ## Installation
 
-### Go Install (recommended)
+### Build locally
 
 ```bash
-go install github.com/4rji/LocIp@latest
+go build -o locip .
 ```
 
-Add `$(go env GOPATH)/bin` to your `PATH` if you have not already. The installation places the `locip` binary in that directory.
+### Run without installing
 
-### Manual Build
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/4rji/LocIp.git
-   cd LocIp
-   ```
-
-2. Build the binary:
-   ```bash
-   go build -o locip .
-   ```
+```bash
+go run . -h
+```
 
 ## Usage
 
-### Basic Commands
+Current menu:
 
-```bash
-# Show help
-./locip -h
+![locip CLI menu](./menu.webp)
 
-# Query ipinfo.io for your public IP
-./locip -i
+```text
+Usage: locip [options] [target]
 
-# Query ipinfo.io for a specific IP
-./locip -i 8.8.8.8
+Looks up geolocation information for IP addresses using a local GeoLite2 database or ipinfo.io.
 
-# Query AbuseIPDB for abuse information
-./locip -a 1.2.3.4
+Options:
+  -d                Use the local GeoLite2 database at the default path.
+  -db <path>        Use the local GeoLite2 database at a custom path.
+  -i                Query ipinfo.io explicitly. This is the default behavior.
+  -no-color         Disable ANSI color output.
 
-# Use local GeoLite2 database for an IP
-./locip 1.1.1.1
+Targets:
+  <ip_address>      Query ipinfo.io by default.
+  <filepath>        Process a file using ipinfo.io by default.
+  -d <ip_address>   Use the local GeoLite2 database to locate an IP address.
+  -d <filepath>     Process a file containing one IP address per line.
+  no arguments      Show this help.
 
-# Process a file with IP addresses
-./locip my_ips.txt
+Examples:
+  locip 8.8.8.8
+  locip ips.txt
+  locip -d 1.1.1.1
+  locip -d my_ip_list.txt
+  locip -db ./GeoLite2-City.mmdb 1.1.1.1
 ```
-
-### AbuseIPDB Options
-
-```bash
-# Basic abuse check
-./locip -a 1.2.3.4
-
-# With custom age (30 days)
-./locip -a 1.2.3.4 --age 30
-
-# Raw JSON output
-./locip -a 1.2.3.4 --raw
-
-# Combine options
-./locip -a 1.2.3.4 --age 30 --raw
-```
-
-## Configuration
-
-### AbuseIPDB API Key
-
-Set your AbuseIPDB API key using one of these methods:
-
-1. **Environment variable**:
-```bash
-export ABUSEIPDB_KEY="your_api_key_here"
-```
-
-2. **Configuration file**:
-```bash
-mkdir -p ~/.config/abuseipdb
-echo "your_api_key_here" > ~/.config/abuseipdb/key
-```
-
-3. **Home directory file**:
-```bash
-echo "your_api_key_here" > ~/.abuseipdb_key
-```
-
-### GeoLite2 Database
-
-The tool expects the GeoLite2 City database at `/opt/4rji/GeoLite2-City.mmdb`. You can:
-
-1. Download it from MaxMind and accept their license
-2. Place it in the expected location
-3. Or modify the `dbPath` constant in `geoip.go`
-
-## Project Structure
-
-The project is organized into modular files for better maintainability:
-
-- **`locip.go`**: Main function and command-line logic
-- **`geoip.go`**: GeoLite2 database operations
-- **`ipinfo.go`**: ipinfo.io API integration
-- **`abuseip.go`**: AbuseIPDB API integration
-- **`utils.go`**: Common utility functions and file processing
-
-## Dependencies
-
-- `github.com/oschwald/geoip2-golang`: GeoLite2 database reader
-- Standard Go libraries for HTTP, JSON, and file operations
 
 ## Examples
 
-### Batch Processing
+### Online lookup with ipinfo.io
 
-Create a file `ips.txt` with IP addresses (one per line):
+```bash
+./locip 8.8.8.8
 ```
+
+### Explicit ipinfo.io lookup
+
+```bash
+./locip -i 1.1.1.1
+```
+
+### Batch lookup from file using ipinfo.io
+
+```bash
+./locip ips.txt
+```
+
+### Local GeoLite2 lookup
+
+```bash
+./locip -d 1.1.1.1
+```
+
+### Local GeoLite2 lookup with custom database path
+
+```bash
+./locip -db ./GeoLite2-City.mmdb 1.1.1.1
+```
+
+### Batch lookup from file using the local database
+
+```bash
+./locip -d my_ip_list.txt
+```
+
+### Disable color output
+
+```bash
+./locip -no-color 8.8.8.8
+```
+
+Or with environment variable:
+
+```bash
+NO_COLOR=1 ./locip 8.8.8.8
+```
+
+## Local database
+
+By default, `locip` expects the GeoLite2 City database at:
+
+```text
+/opt/4rji/GeoLite2-City.mmdb
+```
+
+If your database lives somewhere else, pass it with `-db`:
+
+```bash
+./locip -db /path/to/GeoLite2-City.mmdb 1.1.1.1
+```
+
+## File input format
+
+When using a file as target, `locip` expects one IP per line.
+
+Example:
+
+```text
 8.8.8.8
 1.1.1.1
 208.67.222.222
 ```
 
-Then process it:
-```bash
-./locip ips.txt
-```
+Blank lines and lines starting with `#` are ignored.
 
-### Abuse Check with Custom Age
+## Notes
 
-```bash
-./locip -a 192.168.1.1 --age 60
-```
+- `-i` is kept as a compatibility alias for ipinfo.io mode.
+- Online mode accepts a single target at a time.
+- Local mode supports a single IP or a file containing IPs.
 
-This command checks the abuse reputation for the last 60 days instead of the default 90 days.
+## Project structure
 
-## License
+- `locip.go` — main CLI, argument parsing, output formatting, ipinfo.io requests, and GeoLite2 processing
+- `locip_test.go` — tests for CLI behavior and request handling
 
-[Add your license information here] 
+## Dependency
+
+- `github.com/oschwald/geoip2-golang`

@@ -1,6 +1,6 @@
-module github.com/4rji/LocIp
+module locip
 
-go 1.22
+go 1.24
 
 require github.com/oschwald/geoip2-golang v1.11.0
 
