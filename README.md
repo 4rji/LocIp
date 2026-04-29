@@ -44,7 +44,6 @@ Looks up geolocation information for IP addresses using a local GeoLite2 databas
 Options:
   -d                Use the local GeoLite2 database at the default path.
   -db <path>        Use the local GeoLite2 database at a custom path.
-  -i                Query ipinfo.io explicitly. This is the default behavior.
   -no-color         Disable ANSI color output.
 
 Targets:
@@ -52,10 +51,14 @@ Targets:
   <filepath>        Process a file using ipinfo.io by default.
   -d <ip_address>   Use the local GeoLite2 database to locate an IP address.
   -d <filepath>     Process a file containing one IP address per line.
-  no arguments      Show this help.
+  no arguments      Query your current public IP using ipinfo.io.
+
+Database:
+  locipinst              # Run this command to install/update the GeoLite2 database (if locipinst script is available)
 
 Examples:
   locip 8.8.8.8
+  locip
   locip ips.txt
   locip -d 1.1.1.1
   locip -d my_ip_list.txt
@@ -70,10 +73,10 @@ Examples:
 ./locip 8.8.8.8
 ```
 
-### Explicit ipinfo.io lookup
+### Current public IP lookup
 
 ```bash
-./locip -i 1.1.1.1
+./locip
 ```
 
 ### Batch lookup from file using ipinfo.io
@@ -126,6 +129,12 @@ If your database lives somewhere else, pass it with `-db`:
 ./locip -db /path/to/GeoLite2-City.mmdb 1.1.1.1
 ```
 
+If the `locipinst` helper is available in your system, run it to install or update the GeoLite2 database:
+
+```bash
+locipinst
+```
+
 ## File input format
 
 When using a file as target, `locip` expects one IP per line.
@@ -142,7 +151,6 @@ Blank lines and lines starting with `#` are ignored.
 
 ## Notes
 
-- `-i` is kept as a compatibility alias for ipinfo.io mode.
 - Online mode accepts a single target at a time.
 - Local mode supports a single IP or a file containing IPs.
 

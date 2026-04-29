@@ -60,7 +60,6 @@ func (c colorizer) info(text string) string {
 type config struct {
 	dbPath  string
 	localDB bool
-	online  bool
 	noColor bool
 	targets []string
 }
@@ -94,25 +93,29 @@ func run(args []string, stdout, stderr io.Writer) int {
 		printUsage(stdout, colors)
 		return 0
 	}
-	if len(cfg.targets) == 0 {
-		printUsage(stdout, colors)
-		return 0
-	}
 
-	target := cfg.targets[0]
+	fmt.Fprintln(stdout, "Tip: use -h for more options.")
+
 	if !cfg.localDB {
 		client := &http.Client{Timeout: 8 * time.Second}
+		target := cfg.onlineTarget()
 		if isExistingFile(target) {
 			return processIPInfoFile(stdout, stderr, client, target, colors)
 		}
 
-		if err := queryIPInfo(stdout, client, cfg.onlineTarget(), colors); err != nil {
+		if err := queryIPInfo(stdout, client, target, colors); err != nil {
 			fmt.Fprintf(stderr, "%s %v\n", colors.err("Error:"), err)
 			return 1
 		}
 		return 0
 	}
 
+	if len(cfg.targets) == 0 {
+		printUsage(stdout, colors)
+		return 0
+	}
+
+	target := cfg.targets[0]
 	if isExistingFile(target) {
 		return processIPFile(stdout, stderr, target, cfg.dbPath, colors)
 	}
@@ -134,7 +137,6 @@ func parseArgs(args []string, stderr io.Writer) (config, bool, error) {
 	fs.SetOutput(stderr)
 	fs.Usage = func() {}
 	fs.BoolVar(&cfg.localDB, "d", false, "use the local GeoLite2 database")
-	fs.BoolVar(&cfg.online, "i", false, "query ipinfo.io; kept as a compatibility alias")
 	fs.StringVar(&cfg.dbPath, "db", cfg.dbPath, "path to the GeoLite2 City database")
 	fs.BoolVar(&cfg.noColor, "no-color", false, "disable ANSI color output")
 
@@ -151,9 +153,6 @@ func parseArgs(args []string, stderr io.Writer) (config, bool, error) {
 			cfg.localDB = true
 		}
 	})
-	if cfg.online && cfg.localDB {
-		return cfg, false, fmt.Errorf("use either -i for ipinfo.io or -d/-db for the local database, not both")
-	}
 	if !cfg.localDB && len(cfg.targets) > 1 {
 		return cfg, false, fmt.Errorf("expected at most one IP address or hostname")
 	}
@@ -188,7 +187,6 @@ func printUsage(w io.Writer, colors colorizer) {
 	fmt.Fprintf(w, "%s\n", colors.label("Options:"))
 	fmt.Fprintln(w, "  -d                Use the local GeoLite2 database at the default path.")
 	fmt.Fprintln(w, "  -db <path>        Use the local GeoLite2 database at a custom path.")
-	fmt.Fprintln(w, "  -i                Query ipinfo.io explicitly. This is the default behavior.")
 	fmt.Fprintln(w, "  -no-color         Disable ANSI color output.")
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "%s\n", colors.label("Targets:"))
@@ -196,10 +194,14 @@ func printUsage(w io.Writer, colors colorizer) {
 	fmt.Fprintln(w, "  <filepath>        Process a file using ipinfo.io by default.")
 	fmt.Fprintln(w, "  -d <ip_address>   Use the local GeoLite2 database to locate an IP address.")
 	fmt.Fprintln(w, "  -d <filepath>     Process a file containing one IP address per line.")
-	fmt.Fprintln(w, "  no arguments      Show this help.")
+	fmt.Fprintln(w, "  no arguments      Query your current public IP using ipinfo.io.")
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "%s\n", colors.label("Database:"))
+	fmt.Fprintln(w, "  locipinst              # Run this command to install/update the GeoLite2 database (if locipinst script is available)")
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "%s\n", colors.label("Examples:"))
 	fmt.Fprintln(w, "  locip 8.8.8.8")
+	fmt.Fprintln(w, "  locip")
 	fmt.Fprintln(w, "  locip ips.txt")
 	fmt.Fprintln(w, "  locip -d 1.1.1.1")
 	fmt.Fprintln(w, "  locip -d my_ip_list.txt")

@@ -2,9 +2,9 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -28,21 +28,12 @@ func TestParseArgsDefaultsToOnlineTarget(t *testing.T) {
 	}
 }
 
-func TestParseArgsOnlineAlias(t *testing.T) {
+func TestParseArgsRejectsOnlineAlias(t *testing.T) {
 	t.Parallel()
 
-	cfg, help, err := parseArgs([]string{"-i", "8.8.8.8"}, &bytes.Buffer{})
-	if err != nil {
-		t.Fatalf("parseArgs returned error: %v", err)
-	}
-	if help {
-		t.Fatal("parseArgs returned help=true")
-	}
-	if !cfg.online {
-		t.Fatal("expected -i compatibility alias to be tracked")
-	}
-	if cfg.localDB {
-		t.Fatal("did not expect local DB mode")
+	_, _, err := parseArgs([]string{"-i", "8.8.8.8"}, &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("expected -i to be rejected")
 	}
 }
 
@@ -132,18 +123,15 @@ func TestIPInfoURL(t *testing.T) {
 func TestQueryIPInfoHandlesHTTPStatus(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, "rate limited", http.StatusTooManyRequests)
-	}))
-	defer server.Close()
-
-	client := server.Client()
-	oldTransport := http.DefaultTransport
-	client.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		req.URL.Scheme = "http"
-		req.URL.Host = strings.TrimPrefix(server.URL, "http://")
-		return oldTransport.RoundTrip(req)
-	})
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Status:     "429 Too Many Requests",
+			Body:       io.NopCloser(strings.NewReader("rate limited")),
+			Header:     make(http.Header),
+			Request:    req,
+		}, nil
+	})}
 
 	var out bytes.Buffer
 	err := queryIPInfo(&out, client, "8.8.8.8", colorizer{})
@@ -171,16 +159,43 @@ func TestRunHelpDisablesColor(t *testing.T) {
 	}
 }
 
-func TestRunWithoutArgsShowsHelp(t *testing.T) {
+func TestRunWithoutArgsQueriesCurrentIP(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
+
+	oldTransport := http.DefaultTransport
+	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Path != "/json" {
+			t.Errorf("unexpected path: %s", req.URL.Path)
+			return &http.Response{
+				StatusCode: http.StatusNotFound,
+				Status:     "404 Not Found",
+				Body:       io.NopCloser(strings.NewReader("not found")),
+				Header:     make(http.Header),
+				Request:    req,
+			}, nil
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Body:       io.NopCloser(strings.NewReader(`{"ip":"203.0.113.10","city":"Example City","org":"AS64496 Example ISP"}`)),
+			Header:     make(http.Header),
+			Request:    req,
+		}, nil
+	})
+	t.Cleanup(func() {
+		http.DefaultTransport = oldTransport
+	})
 
 	var stdout, stderr bytes.Buffer
 	code := run(nil, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("run returned %d, want 0; stderr=%q", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "Usage:") {
-		t.Fatalf("stdout missing usage: %q", stdout.String())
+	if !strings.Contains(stdout.String(), "203.0.113.10") {
+		t.Fatalf("stdout = %q, want current IP lookup result", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Tip: use -h for more options.") {
+		t.Fatalf("stdout = %q, want startup tip", stdout.String())
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
@@ -194,22 +209,25 @@ func TestRunExistingFileUsesIPInfoMode(t *testing.T) {
 		t.Fatalf("WriteFile returned error: %v", err)
 	}
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/1.1.1.1/json" && r.URL.Path != "/8.8.8.8/json" {
-			t.Errorf("unexpected path: %s", r.URL.Path)
-			http.NotFound(w, r)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"ip":"1.1.1.1","org":"AS13335 Cloudflare, Inc."}`))
-	}))
-	defer server.Close()
-
 	oldTransport := http.DefaultTransport
 	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		req.URL.Scheme = "http"
-		req.URL.Host = strings.TrimPrefix(server.URL, "http://")
-		return oldTransport.RoundTrip(req)
+		if req.URL.Path != "/1.1.1.1/json" && req.URL.Path != "/8.8.8.8/json" {
+			t.Errorf("unexpected path: %s", req.URL.Path)
+			return &http.Response{
+				StatusCode: http.StatusNotFound,
+				Status:     "404 Not Found",
+				Body:       io.NopCloser(strings.NewReader("not found")),
+				Header:     make(http.Header),
+				Request:    req,
+			}, nil
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Body:       io.NopCloser(strings.NewReader(`{"ip":"1.1.1.1","org":"AS13335 Cloudflare, Inc."}`)),
+			Header:     make(http.Header),
+			Request:    req,
+		}, nil
 	})
 	t.Cleanup(func() {
 		http.DefaultTransport = oldTransport
