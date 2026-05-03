@@ -1,5 +1,7 @@
 # locip
 
+<img src="img/2.png" alt="locip" width="50%">
+
 `locip` is a small Go CLI for IP geolocation lookups.
 
 It supports two lookup modes:
