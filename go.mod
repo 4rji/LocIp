@@ -1,4 +1,4 @@
-module locip
+module github.com/4rji/locip
 
 go 1.24
 
